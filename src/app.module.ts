@@ -3,8 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { Account } from './account/account.entity';
+import { Account } from './entities/account.entity';
 import * as dotenv from 'dotenv';
+import { Conversation } from './entities/conversation.entity';
+import { Message } from 'entities/message.entity';
+import { BookRecomendation } from 'entities/bookRecomendation.entity';
+import { AIModule } from 'ai/ai.module';
 
 dotenv.config();
 
@@ -12,15 +16,15 @@ dotenv.config();
   imports: [
     TypeOrmModule.forRoot({
       type: 'mysql',
-      host: process.env.DB_HOST || 'localhost',
+      host: "localhost",
       port: 3306,
-      username: process.env.DB_USERNAME || 'admin',
-      password: process.env.DB_PASSWORD || 'admin',
-      database: process.env.DB_NAME || 'your_db_name',
-      entities: [Account],
+      username: 'root',
+      password: 'positivo',
+      database: 'books4u_db',
+      entities: [Account, Conversation, Message, BookRecomendation],
       synchronize: true,
     }),
-    AuthModule,
+    AuthModule, AIModule,
   ],
   controllers: [AppController],
   providers: [AppService],
