@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  nest-app:
+    container_name: nest-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"  # Porta do Nest.js
+    environment:
+      DATABASE_HOST: mysql  # Nome do serviço MySQL (abaixo)
+      DATABASE_PORT: 3306
+      DATABASE_USER: root
+      DATABASE_PASSWORD: positivo
+      DATABASE_NAME: books4u_db
+    depends_on:
+      - mysql
+    networks:
+      - nest-network
+
+  mysql:
+    container_name: mysql
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: positivo
+      MYSQL_DATABASE: books4u_db
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - nest-network
+
+networks:
+  nest-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
