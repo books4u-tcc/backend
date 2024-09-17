@@ -1,14 +1,17 @@
 import { DataSource } from 'typeorm';
-import { Account } from './src/account/account.entity';
+import { Account } from './src/entities/account.entity';
+import { Conversation } from './src/entities/conversation.entity';
+import { Message } from 'entities/message.entity';
+import { BookRecomendation } from 'entities/bookRecomendation.entity';
 
 export const AppDataSource = new DataSource({
   type: 'mysql',
-  host: process.env.DB_HOST || 'localhost',
+  host: "localhost",
   port: 3306,
-  username: process.env.DB_USERNAME || 'admin',
-  password: process.env.DB_PASSWORD || 'admin',
-  database: process.env.DB_NAME || 'books4u_db',
-  entities: [Account],
+  username: "root",
+  password: "positivo",
+  database: "books4u_db",
+  entities: [Account, Conversation, Message, BookRecomendation],
   synchronize: false,
   migrations: ['src/migrations/*.ts'],
 });
