@@ -6,9 +6,9 @@ import * as dotenv from 'dotenv';
 import { Conversation } from './entities/conversation.entity';
 import { Message } from './entities/message.entity';
 import { BookRecomendation } from './entities/bookRecomendation.entity';
-// import { AIModule } from './ai/ai.module';
+import { OpenaiModule} from "./openai/openai.module";
 import { ConversationModule } from './conversations/conversation.module';
-// import { MessageModule } from './messages/message.module';
+import { MessageModule } from './messages/message.module';
 
 dotenv.config();
 
@@ -25,9 +25,9 @@ dotenv.config();
       synchronize: true,
     }),
     AuthModule,
-    // AIModule,
+    OpenaiModule,
     ConversationModule,
-    // MessageModule,
+    MessageModule,
   ],
 })
 export class AppModule {}

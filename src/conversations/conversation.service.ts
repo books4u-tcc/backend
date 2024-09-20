@@ -11,11 +11,11 @@ export class ConversationService {
     private readonly conversationRepository: Repository<Conversation>,
   ) {}
 
-  async createConversation(title: string, user: Account): Promise<Conversation> {
-
+  async createConversation(title: string, user: Account, threadId: string): Promise<Conversation> {
     const conversation = this.conversationRepository.create({
       title,
       createdBy: user,
+      threadId
     });
     return this.conversationRepository.save(conversation);
   }
@@ -28,7 +28,7 @@ export class ConversationService {
   }
 
 
-  async getConversationById(id: string, user: Account): Promise<Conversation> {
+  async getConversationByUserId(id: string, user: Account): Promise<Conversation> {
     const conversation = await this.conversationRepository.findOne({
       where: { id, createdBy: { id: user.id } },
     });
@@ -38,9 +38,22 @@ export class ConversationService {
     return conversation;
   }
 
+  async getConversationById(conversationId: string): Promise<Conversation> {
+    const conversation = await this.conversationRepository.findOne({
+      where: { id: conversationId },
+    });
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+    return conversation;
+
+  }
+
 
   async deleteConversation(id: string, user: Account): Promise<void> {
-    const conversation = await this.getConversationById(id, user);
+    const conversation = await this.getConversationByUserId(id, user);
     await this.conversationRepository.remove(conversation);
   }
+
+
 }
