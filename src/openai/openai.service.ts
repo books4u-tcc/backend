@@ -89,7 +89,7 @@ export class OpenAiService {
 
 
   async getMessages(threadId: string): Promise<any> {
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     const messagesList = await this.openai.beta.threads.messages.list(threadId) as unknown as MessagesListResponse;
     return messagesList.body.data.map((message: any) => {
         return {

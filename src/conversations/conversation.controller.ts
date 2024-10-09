@@ -81,28 +81,26 @@ export class ConversationController {
     // Verificar se a resposta do assistente está disponível e salvar no banco de dados
     if (assistantMessages.length > 0) {
       const assistantMessage = assistantMessages[0]; // Sabemos que será uma única resposta
-      console.log('Assistant message:', assistantMessage);
 
       let contentJson;
 
       try {
         contentJson = JSON.parse(assistantMessage.content);
       } catch (error) {
-        console.error('Erro ao parsear o conteúdo da mensagem do assistente como JSON:', error);
         throw new Error('Formato inválido da mensagem do assistente');
       }
 
       // Validar que message e suggestions existem
-      if (!contentJson.message || !Array.isArray(contentJson.suggestions)) {
+      if (!contentJson.message || !Array.isArray(contentJson.options)) {
         throw new Error('Estrutura inválida da mensagem do assistente');
       }
 
       const mainMessage = contentJson.message;
-      const suggestions = contentJson.suggestions;
+      const suggestions = contentJson.options;
 
       // Verificar se alguma sugestão contém "Gerar recomendações"
       const canGenerateRecommendations = suggestions.some((suggestion: string) =>
-        suggestion.includes("Gerar recomendações")
+        suggestion.includes("Gerar recomendações") || suggestion.includes("Gerar recomendação")
       );
 
       // Salvar a mensagem do assistente no banco de dados
@@ -145,7 +143,7 @@ export class ConversationController {
       }
 
       const mainMessage = contentJson.message;
-      const suggestions = contentJson.suggestions || [];
+      const suggestions = contentJson.options || [];
 
       // Verifica se uma das sugestões contém "Gerar recomendações"
       const canGenerateRecommendations = suggestions.some((suggestion: string) => suggestion.includes("Gerar recomendações")) ? 1 : 0;
