@@ -14,4 +14,7 @@ export class Conversation {
 
   @ManyToOne(() => Account, { eager: true })
   createdBy: Account;
+
+  @Column ({ type: 'text', nullable: false })
+  threadId: string;
 }

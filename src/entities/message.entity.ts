@@ -24,8 +24,8 @@ export class Message {
   @Column({ type: 'text' })
   content: string;
 
-  @Column('simple-array')
-  suggestions: string[];
+  @Column({ type: 'json', nullable: true })
+  suggestions: any[];
 
   @Column({ type: 'boolean', default: false })
   canGenerateRecommendations: boolean;
