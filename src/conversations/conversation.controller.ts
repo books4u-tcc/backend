@@ -22,8 +22,15 @@ export class ConversationController {
   async createConversation(@Req() req: Request): Promise<any> {
     const user = req.user as Account | undefined;
     const threadId = await this.openAiService.createThread();
-    const conversation = await this.conversationService.createConversation('Recomendação de Livros', user ?? null, threadId.id);
-    return {message: 'Conversation created successfully', threadId};
+    const conversationRequest = await this.conversationService.createConversation('Recomendação de Livros', user ?? null, threadId.id);
+    let conversation = [
+      {
+        id: conversationRequest.id,
+        title: conversationRequest.title,
+        threadId: conversationRequest.threadId,
+      }
+    ]
+    return {message: 'Conversation created successfully',conversation};
   }
 
   @UseGuards(JwtAuthGuard)
