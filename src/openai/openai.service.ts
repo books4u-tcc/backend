@@ -1,6 +1,8 @@
 import {HttpException, HttpStatus, Injectable} from '@nestjs/common';
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
+import {Beta} from "openai/resources";
+import Thread = Beta.Thread;
 
 dotenv.config();
 
@@ -63,14 +65,12 @@ export class OpenAiService {
   }
 
   // Create a new thread and immediately run the assistant
-  async createThread(): Promise<string> {
+  async createThread(): Promise<Thread> {
     try {
       console.log('Creating a new thread and running assistant');
-      const response = await this.openai.beta.threads.createAndRun({
-        assistant_id: this.assistantId,
-      });
-      console.log('Thread created:', response.thread_id);
-      return response.thread_id;
+      const response = await this.openai.beta.threads.create();
+      console.log('Thread created:', response);
+      return response;
     } catch (error) {
       console.error('Error creating thread:', error);
       throw new HttpException('Failed to create thread with OpenAI', HttpStatus.INTERNAL_SERVER_ERROR);

@@ -6,8 +6,8 @@ import {Request} from 'express';
 import {Account} from '../entities/account.entity';
 import {MessageService} from '../messages/message.service';
 import {Role} from '../entities/message.entity';
+import {OptionalJwtAuthGuard} from "../auth/guards/optional-jwt-auth.guard";
 
-@UseGuards(JwtAuthGuard)
 @Controller('conversations')
 export class ConversationController {
   constructor(
@@ -17,41 +17,30 @@ export class ConversationController {
   ) {
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Post()
   async createConversation(@Req() req: Request): Promise<any> {
-    const user = req.user as Account;
-    // Cria uma nova thread no OpenAI e já executa o assistente
+    const user = req.user as Account | undefined;
     const threadId = await this.openAiService.createThread();
-    // Cria a conversa no banco de dados
-    const conversation = await this.conversationService.createConversation('Recomendação de Livros', user, threadId);
-    // Pega a primeira mensagem do assistente
-    const messages = await this.openAiService.getMessages(threadId);
-    // Salvar a mensagem inicial do assistente no banco de dados
-    for (const message of messages) {
-      await this.messageService.saveMessage(
-        message.content,
-        Role.BOT,
-        conversation,
-        [],
-        false,
-      );
-    }
-
-    return {conversationId: conversation.id, messages};
+    const conversation = await this.conversationService.createConversation('Recomendação de Livros', user ?? null, threadId.id);
+    return {message: 'Conversation created successfully', threadId};
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get()
   async getUserConversations(@Req() req: Request) {
     const user = req.user as Account;
     return this.conversationService.getUserConversations(user);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   async getConversation(@Param('id') id: string, @Req() req: Request) {
     const user = req.user as Account;
     return this.conversationService.getConversationByUserId(id, user);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Delete(':id')
   async deleteConversation(@Param('id') id: string, @Req() req: Request) {
     const user = req.user as Account;
@@ -63,6 +52,7 @@ export class ConversationController {
     return {message: 'Conversation deleted successfully'};
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Post(':conversationId/messages')
   async sendMessage(
     @Param('conversationId') conversationId: string,
@@ -78,8 +68,8 @@ export class ConversationController {
       message,
       Role.USER,
       conversation,
-      [], // Usuário não tem sugestões
-      false // Usuário não pode gerar recomendações
+      [],
+      false
     );
 
     // Rodar o assistente para processar a mensagem
@@ -91,43 +81,29 @@ export class ConversationController {
     // Verificar se a resposta do assistente está disponível e salvar no banco de dados
     if (assistantMessages.length > 0) {
       const assistantMessage = assistantMessages[0]; // Sabemos que será uma única resposta
+      console.log('Assistant message:', assistantMessage);
 
-      // Separar a mensagem principal e as sugestões
-      const contentParts = assistantMessage.content.split('\n');
-      const mainMessage = contentParts[0]; // A primeira linha é a mensagem principal
-      const suggestions = contentParts.slice(1).filter((s: string) => s.trim() !== ''); // As sugestões são todas as outras linhas
+      let contentJson;
 
-      // // Verificar se a mensagem contém "Gerar recomendações"
-      // let bookName = '';
-      // let authorName = '';
-      // let imageUrl = '';
-      // let externalLink = '';
-      //
-      // // Loop para procurar os padrões "Nome do livro", "Autor", "Imagem", "Link"
-      // contentParts.forEach((part: string) => {
-      //   if (part.startsWith('Nome do livro:')) {
-      //     bookName = part.replace('Nome do livro:', '').trim();
-      //   } else if (part.startsWith('Autor do livro:')) {
-      //     authorName = part.replace('Autor do livro:', '').trim();
-      //   } else if (part.startsWith('Imagem do livro:')) {
-      //     imageUrl = part.replace('Imagem do livro:', '').trim();
-      //   } else if (part.startsWith('Link do livro:')) {
-      //     externalLink = part.replace('Link do livro:', '').trim();
-      //   }
-      // });
-      //
-      // // Se o nome e autor estiverem presentes, salvar a recomendação
-      // if (bookName && authorName) {
-      //   await this.bookRecomendationService.saveRecomendation(
-      //     bookName,
-      //     authorName,
-      //     imageUrl || null,
-      //     externalLink || null
-      //   );
-      // }
+      try {
+        contentJson = JSON.parse(assistantMessage.content);
+      } catch (error) {
+        console.error('Erro ao parsear o conteúdo da mensagem do assistente como JSON:', error);
+        throw new Error('Formato inválido da mensagem do assistente');
+      }
 
-      // Verificar se alguma sugestão contém "Gerar recomendação"
-      const canGenerateRecommendations = suggestions.some((suggestion: string | string[]) => suggestion.includes("Gerar recomendações"));
+      // Validar que message e suggestions existem
+      if (!contentJson.message || !Array.isArray(contentJson.suggestions)) {
+        throw new Error('Estrutura inválida da mensagem do assistente');
+      }
+
+      const mainMessage = contentJson.message;
+      const suggestions = contentJson.suggestions;
+
+      // Verificar se alguma sugestão contém "Gerar recomendações"
+      const canGenerateRecommendations = suggestions.some((suggestion: string) =>
+        suggestion.includes("Gerar recomendações")
+      );
 
       // Salvar a mensagem do assistente no banco de dados
       await this.messageService.saveMessage(
@@ -139,12 +115,12 @@ export class ConversationController {
       );
     }
 
-    return { userMessage };
+    return assistantMessages[0].content
   }
 
 
-
-  // GET /conversations/:conversationId/messages
+  @UseGuards(JwtAuthGuard)
+// GET /conversations/:conversationId/messages
   @Get(':conversationId/messages')
   async getMessages(@Param('conversationId') conversationId: string): Promise<any> {
     const conversation = await this.conversationService.getConversationById(conversationId);
@@ -153,16 +129,26 @@ export class ConversationController {
 
     // Processar as mensagens para o formato esperado
     const formattedMessages = messages.map((message: any) => {
-      const contentParts = message.content.split('\n');
+      let contentJson;
 
-      // Primeira linha é a mensagem principal
-      const mainMessage = contentParts[0];
+      // Tentar parsear o conteúdo da mensagem como JSON
+      try {
+        contentJson = JSON.parse(message.content);
+      } catch (error) {
+        console.error('Erro ao parsear o conteúdo da mensagem como JSON:', error);
 
-      // As sugestões são todas as outras linhas
-      const suggestions = contentParts.slice(1).filter((s: string) => s.trim() !== '');
+        // Se ocorrer um erro no parseamento, usar o conteúdo original
+        contentJson = {
+          message: message.content,
+          suggestions: []
+        };
+      }
 
-      // Verifica se uma das sugestões contém "Gerar recomendação"
-      const canGenerateRecommendations = suggestions.some((suggestion: string | string[]) => suggestion.includes("Gerar recomendações")) ? 1 : 0;
+      const mainMessage = contentJson.message;
+      const suggestions = contentJson.suggestions || [];
+
+      // Verifica se uma das sugestões contém "Gerar recomendações"
+      const canGenerateRecommendations = suggestions.some((suggestion: string) => suggestion.includes("Gerar recomendações")) ? 1 : 0;
 
       return {
         role: message.role,

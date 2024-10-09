@@ -11,13 +11,21 @@ export class ConversationService {
     private readonly conversationRepository: Repository<Conversation>,
   ) {}
 
-  async createConversation(title: string, user: Account, threadId: string): Promise<Conversation> {
-    const conversation = this.conversationRepository.create({
-      title,
-      createdBy: user,
-      threadId
-    });
-    return this.conversationRepository.save(conversation);
+  async createConversation(title: string, user: Account | null, threadId: string): Promise<Conversation> {
+    if (!user) {
+      const conversation = this.conversationRepository.create({
+        title,
+        threadId
+      });
+      return this.conversationRepository.save(conversation);
+    } else {
+      const conversation = this.conversationRepository.create({
+        title,
+        createdBy: user,
+        threadId
+      });
+      return this.conversationRepository.save(conversation);
+    }
   }
 
   async getUserConversations(user: Account): Promise<Conversation[]> {
