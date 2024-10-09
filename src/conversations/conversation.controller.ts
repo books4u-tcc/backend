@@ -30,7 +30,7 @@ export class ConversationController {
         threadId: conversationRequest.threadId,
       }
     ]
-    return {message: 'Conversation created successfully',conversation};
+    return {message: 'Conversation created successfully', conversation};
   }
 
   @UseGuards(JwtAuthGuard)
@@ -97,27 +97,70 @@ export class ConversationController {
         throw new Error('Formato inválido da mensagem do assistente');
       }
 
-      // Validar que message e suggestions existem
-      if (!contentJson.message || !Array.isArray(contentJson.options)) {
-        throw new Error('Estrutura inválida da mensagem do assistente');
+      if (contentJson.options) {
+        console.log('SOU UMA OPÇÃO DE RESPOSTA COM MENSAGEM')
+        console.log('contentJson.message', contentJson.message);
+        console.log('contentJson.options', contentJson.options);
+        // Validar que message e suggestions existem
+        if (!contentJson.message || !Array.isArray(contentJson.options)) {
+          throw new Error('Estrutura inválida da mensagem do assistente');
+        }
+
+        const mainMessage = contentJson.message;
+        const suggestions = contentJson.options;
+
+        // Verificar se alguma sugestão contém "Gerar recomendações"
+        const canGenerateRecommendations = suggestions.some((suggestion: string) =>
+          suggestion.includes("Gerar recomendações") || suggestion.includes("Gerar recomendação")
+        );
+
+        // Salvar a mensagem do assistente no banco de dados
+        await this.messageService.saveMessage(
+          mainMessage,               // Conteúdo principal da mensagem do assistente
+          Role.BOT,                  // Identificar que é uma mensagem do assistente (BOT)
+          conversation,              // Conversação a que pertence
+          suggestions,               // As sugestões extraídas
+          canGenerateRecommendations  // Se pode gerar recomendações ou não
+        );
+      } else if (contentJson.suggestions) {
+        console.log('SOU UMA RECOMENDAÇÃO DE LIVROS')
+        console.log('contentJson.message', contentJson.message);
+        console.log('contentJson.suggestions', contentJson.suggestions);
+
+        const mainMessage = contentJson.message;
+        const suggestions = contentJson.suggestions;
+
+        // TODO - INTEGRAÇÃO COM A API DE LIVROS
+
+        let recommendations: {
+          name: string;
+          author: string | null;
+          imageUrl: string | null;
+          externalLink: string | null;
+        }[] = [];
+
+        suggestions.forEach((suggestion: { title: string; author: string }) => {
+          recommendations.push({
+            name: suggestion.title,
+            author: suggestion.author,
+            imageUrl: null,
+            externalLink: null
+          });
+        });
+
+        await this.messageService.saveMessage(
+          mainMessage,      // Conteúdo principal da mensagem do assistente
+          Role.BOT,         // Identificar que é uma mensagem do assistente (BOT)
+          conversation,     // Conversação a que pertence
+          suggestions,      // As sugestões extraídas
+          true              // Se pode gerar recomendações ou não
+        );
+
+        return {
+          message: mainMessage,
+          recommendations: recommendations, // Removido o array extra aqui
+        };
       }
-
-      const mainMessage = contentJson.message;
-      const suggestions = contentJson.options;
-
-      // Verificar se alguma sugestão contém "Gerar recomendações"
-      const canGenerateRecommendations = suggestions.some((suggestion: string) =>
-        suggestion.includes("Gerar recomendações") || suggestion.includes("Gerar recomendação")
-      );
-
-      // Salvar a mensagem do assistente no banco de dados
-      await this.messageService.saveMessage(
-        mainMessage,               // Conteúdo principal da mensagem do assistente
-        Role.BOT,                  // Identificar que é uma mensagem do assistente (BOT)
-        conversation,              // Conversação a que pertence
-        suggestions,               // As sugestões extraídas
-        canGenerateRecommendations  // Se pode gerar recomendações ou não
-      );
     }
 
     return assistantMessages[0].content
@@ -163,7 +206,7 @@ export class ConversationController {
       };
     });
 
-    return { messages: formattedMessages };
+    return {messages: formattedMessages};
   }
 
 }
