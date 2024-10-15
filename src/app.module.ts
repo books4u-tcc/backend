@@ -9,6 +9,7 @@ import { BookRecomendation } from './entities/bookRecomendation.entity';
 import { OpenaiModule} from "./openai/openai.module";
 import { ConversationModule } from './conversations/conversation.module';
 import { MessageModule } from './messages/message.module';
+import { BookRecomendationModule } from 'recommendation/book-recommendation.module';
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ dotenv.config();
     OpenaiModule,
     ConversationModule,
     MessageModule,
+    BookRecomendationModule
   ],
 })
 export class AppModule {}
