@@ -7,6 +7,8 @@ import {Account} from '../entities/account.entity';
 import {MessageService} from '../messages/message.service';
 import {Role} from '../entities/message.entity';
 import {OptionalJwtAuthGuard} from "../auth/guards/optional-jwt-auth.guard";
+import { BookRecomendationService } from 'recommendation/book-recommendation.service';
+import { BookRecomendation } from 'entities/bookRecomendation.entity';
 
 @Controller('conversations')
 export class ConversationController {
@@ -14,6 +16,7 @@ export class ConversationController {
     private readonly conversationService: ConversationService,
     private readonly openAiService: OpenAiService,
     private readonly messageService: MessageService,
+    private readonly bookService: BookRecomendationService
   ) {
   }
 
@@ -139,7 +142,7 @@ export class ConversationController {
         const suggestions = contentJson.suggestions;
 
         // pegar o ultimo item de suggestions para verificar se é uma string "Gerar Outra Recomendação"
-        const canGenerateRecommendations = suggestions[suggestions.length - 1] === ("Gerar Outra Recomendação" || "Gerar recomendações" || "Gerar outra recomendação") ? 1 : 0;
+        const canGenerateRecommendations = suggestions[suggestions.length - 1] === "Gerar Outra Recomendação" || "Gerar recomendações" || "Gerar outra recomendação" ? 1 : 0;
         // retirar a opção de gerar recomendações do suggestions
         if (canGenerateRecommendations) {
           suggestions.pop();
@@ -154,14 +157,19 @@ export class ConversationController {
           externalLink: string | null;
         }[] = [];
 
-        suggestions.forEach((suggestion: { title: string; author: string }) => {
-          recommendations.push({
-            name: suggestion.title,
-            author: suggestion.author,
-            imageUrl: null,
-            externalLink: null
-          });
-        });
+        const promises = suggestions.map(async (suggestion : any) => {
+          const bookData = await this.bookService.getBookInfo(suggestion.title); // Chamada da API de livros
+      
+          return {
+              name: bookData.name || suggestion.title,
+              author: bookData.author || suggestion.author,
+              imageUrl: bookData.imageUrl || null,
+              externalLink: bookData.externalLink || null
+          };
+      });
+      
+      recommendations = await Promise.all(promises);
+      console.log(recommendations);
 
         await this.messageService.saveMessage(
           mainMessage,      // Conteúdo principal da mensagem do assistente
