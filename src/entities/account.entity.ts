@@ -18,4 +18,6 @@ export class Account {
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;
 
+  @OneToMany(() => Conversation, conversation => conversation.createdBy)
+  conversations: Conversation[];
 }
