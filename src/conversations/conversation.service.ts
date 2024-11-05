@@ -6,10 +6,14 @@ import {Account} from '../entities/account.entity';
 
 @Injectable()
 export class ConversationService {
+
   constructor(
+
     @InjectRepository(Conversation)
     private readonly conversationRepository: Repository<Conversation>,
+
   ) {}
+
 
   async createConversation(title: string, user: Account | null, threadId: string): Promise<Conversation> {
     if (!user) {
@@ -17,6 +21,7 @@ export class ConversationService {
         title,
         threadId
       });
+      
       return this.conversationRepository.save(conversation);
     } else {
       const conversation = this.conversationRepository.create({
@@ -57,10 +62,13 @@ export class ConversationService {
 
   }
 
-
   async deleteConversation(id: string, user: Account): Promise<void> {
     const conversation = await this.getConversationByUserId(id, user);
     await this.conversationRepository.remove(conversation);
+  }
+
+  async updateConversationTitle(conversationId: string, newTitle: string): Promise<void> {
+    await this.conversationRepository.update(conversationId, { title: newTitle });
   }
 
 
