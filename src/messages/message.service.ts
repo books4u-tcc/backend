@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Message, Role } from '../entities/message.entity';
 import { Conversation } from '../entities/conversation.entity';
+import axios from 'axios';
 
 @Injectable()
 export class MessageService {
@@ -34,4 +35,5 @@ export class MessageService {
       order: { createdAt: 'ASC' },
     });
   }
+
 }
