@@ -22,6 +22,7 @@ export class ConversationController {
 
   @UseGuards(OptionalJwtAuthGuard)
   @Post()
+  
   async createConversation(@Req() req: Request): Promise<any> {
     const user = req.user as Account | undefined;
   
@@ -206,45 +207,60 @@ export class ConversationController {
   }
 
   @UseGuards(JwtAuthGuard)
-// GET /conversations/:conversationId/messages
   @Get(':conversationId/messages')
   async getMessages(@Param('conversationId') conversationId: string): Promise<any> {
     const conversation = await this.conversationService.getConversationById(conversationId);
-
     const messages = await this.openAiService.getMessages(conversation.threadId);
-
-    // Processar as mensagens para o formato esperado
-    const formattedMessages = messages.map((message: any) => {
+  
+    const formattedMessages = await Promise.all(messages.map(async (message: any) => {
       let contentJson;
-
-      // Tentar parsear o conteúdo da mensagem como JSON
+  
+      // Tenta parsear o conteúdo da mensagem como JSON
       try {
         contentJson = JSON.parse(message.content);
       } catch (error) {
         console.error('Erro ao parsear o conteúdo da mensagem como JSON:', error);
-
-        // Se ocorrer um erro no parseamento, usar o conteúdo original
         contentJson = {
           message: message.content,
           suggestions: []
         };
       }
-
+  
       const mainMessage = contentJson.message;
-      const suggestions = contentJson.options || [];
-
+      const suggestions = contentJson.suggestions || contentJson.options || [];
+  
       // Verifica se uma das sugestões contém "Gerar recomendações"
-      const canGenerateRecommendations = suggestions.some((suggestion: string) => suggestion.includes("Gerar recomendações")) ? 1 : 0;
-
+      const canGenerateRecommendations = suggestions.some((suggestion: any) => 
+        typeof suggestion === 'string' && suggestion.includes("Gerar recomendações")
+      ) ? 1 : 0;
+  
+      // Processa sugestões com dados adicionais de livro, se disponíveis
+      const enrichedSuggestions = await Promise.all(suggestions.map(async (suggestion: any) => {
+        if (typeof suggestion === 'object' && suggestion.title) {
+          // Obtém dados adicionais do livro usando o bookService
+          const bookData = await this.bookService.getBookInfo(suggestion.title);
+          
+          return {
+            title: bookData.name || suggestion.title,
+            author: bookData.author || suggestion.author,
+            imageUrl: bookData.imageUrl || null,
+            externalLink: bookData.externalLink || null
+          };
+        }
+        // Retorna a sugestão como está se não for um objeto de livro válido
+        return suggestion;
+      }));
+  
       return {
         role: message.role,
         message: mainMessage,
-        suggestions: suggestions,
-        canGenerateRecommendations: canGenerateRecommendations
+        suggestions: enrichedSuggestions,
+        canGenerateRecommendations: canGenerateRecommendations,
       };
-    });
-
-    return {messages: formattedMessages};
+    }));
+  
+    return { messages: formattedMessages };
   }
-
+  
+  
 }
