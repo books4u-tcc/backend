@@ -13,17 +13,7 @@ export class BookRecomendationController {
       return { message: 'Query parameter "q" is required' };
     }
 
-    // Traduzir query do inglês para português
-    const translatedQuery = await this.translateToPortuguese(query);
-    return this.bookService.getBookInfo(translatedQuery);
-  }
-
-  private async translateToPortuguese(text: string): Promise<string> {
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(
-      text,
-    )}&langpair=en|pt`;
-    const response = await axios.get(url);
-    return response.data.responseData.translatedText;
+    return this.bookService.getBookInfo(query);
   }
 
 }

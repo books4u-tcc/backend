@@ -22,13 +22,13 @@ export class ConversationController {
 
   @UseGuards(OptionalJwtAuthGuard)
   @Post()
+  
   async createConversation(@Req() req: Request): Promise<any> {
     const user = req.user as Account | undefined;
   
     const threadId = await this.openAiService.createThread();
   
-    const generatedTitle = await this.openAiService.generateTitleForConversation('Recomendação de Livros');
-    
+    const generatedTitle = "Nova conversa"
     const conversationRequest = await this.conversationService.createConversation(
       generatedTitle,
       user ?? null,
@@ -92,15 +92,6 @@ export class ConversationController {
       false
     );
   
-        // Recupera todas as mensagens da conversa para gerar o contexto completo
-    const contextMessages = await this.openAiService.getMessages(conversation.threadId);
-
-    // Usa o contexto completo para gerar um novo título
-    const newTitle = await this.openAiService.generateTitleForConversation(contextMessages);
-
-
-    await this.conversationService.updateConversationTitle(conversationId, newTitle);
-  
     const runId = await this.openAiService.runAssistant(conversation.threadId);
   
     const assistantMessages = await this.openAiService.checkingStatus(conversation.threadId, runId);
@@ -117,9 +108,7 @@ export class ConversationController {
       }
   
       if (contentJson.options) {
-        console.log('SOU UMA OPÇÃO DE RESPOSTA COM MENSAGEM');
-        console.log('contentJson.message', contentJson.message);
-        console.log('contentJson.options', contentJson.options);
+
         // Validar que message e suggestions existem
         if (!contentJson.message || !Array.isArray(contentJson.options)) {
           throw new Error('Estrutura inválida da mensagem do assistente');
@@ -143,7 +132,13 @@ export class ConversationController {
           suggestions,               // As sugestões extraídas
           canGenerateRecommendations  // Se pode gerar recomendações ou não
         );
-  
+      
+        const newTitle = contentJson.title || conversation.title;
+        
+        if (newTitle && newTitle !== conversation.title) {
+            await this.conversationService.updateConversationTitle(conversationId, newTitle);
+        }
+
         return {
           message: mainMessage,
           options: suggestions,
@@ -152,10 +147,7 @@ export class ConversationController {
         };
       
       } else if (contentJson.suggestions) {
-        console.log('SOU UMA RECOMENDAÇÃO DE LIVROS');
-        console.log('contentJson.message', contentJson.message);
-        console.log('contentJson.suggestions', contentJson.suggestions);
-  
+        
         const mainMessage = contentJson.message;
         const suggestions = contentJson.suggestions;
   
@@ -185,8 +177,7 @@ export class ConversationController {
         });
         
         recommendations = await Promise.all(promises);
-        console.log(recommendations);
-  
+
         await this.messageService.saveMessage(
           mainMessage,      // Conteúdo principal da mensagem do assistente
           Role.BOT,         // Identificar que é uma mensagem do assistente (BOT)
@@ -195,6 +186,12 @@ export class ConversationController {
           true              // Se pode gerar recomendações ou não
         );
   
+        const newTitle = contentJson.title || conversation.title;
+
+        if (newTitle && newTitle !== conversation.title) {
+            await this.conversationService.updateConversationTitle(conversationId, newTitle);
+        }
+      
         return {
           message: mainMessage,
           recommendations: recommendations,
@@ -206,45 +203,60 @@ export class ConversationController {
   }
 
   @UseGuards(JwtAuthGuard)
-// GET /conversations/:conversationId/messages
   @Get(':conversationId/messages')
   async getMessages(@Param('conversationId') conversationId: string): Promise<any> {
     const conversation = await this.conversationService.getConversationById(conversationId);
-
     const messages = await this.openAiService.getMessages(conversation.threadId);
-
-    // Processar as mensagens para o formato esperado
-    const formattedMessages = messages.map((message: any) => {
+  
+    const formattedMessages = await Promise.all(messages.map(async (message: any) => {
       let contentJson;
-
-      // Tentar parsear o conteúdo da mensagem como JSON
+  
+      // Tenta parsear o conteúdo da mensagem como JSON
       try {
         contentJson = JSON.parse(message.content);
       } catch (error) {
         console.error('Erro ao parsear o conteúdo da mensagem como JSON:', error);
-
-        // Se ocorrer um erro no parseamento, usar o conteúdo original
         contentJson = {
           message: message.content,
           suggestions: []
         };
       }
-
+  
       const mainMessage = contentJson.message;
-      const suggestions = contentJson.options || [];
-
+      const suggestions = contentJson.suggestions || contentJson.options || [];
+  
       // Verifica se uma das sugestões contém "Gerar recomendações"
-      const canGenerateRecommendations = suggestions.some((suggestion: string) => suggestion.includes("Gerar recomendações")) ? 1 : 0;
-
+      const canGenerateRecommendations = suggestions.some((suggestion: any) => 
+        typeof suggestion === 'string' && suggestion.includes("Gerar recomendações")
+      ) ? 1 : 0;
+  
+      // Processa sugestões com dados adicionais de livro, se disponíveis
+      const enrichedSuggestions = await Promise.all(suggestions.map(async (suggestion: any) => {
+        if (typeof suggestion === 'object' && suggestion.title) {
+          // Obtém dados adicionais do livro usando o bookService
+          const bookData = await this.bookService.getBookInfo(suggestion.title);
+          
+          return {
+            title: bookData.name || suggestion.title,
+            author: bookData.author || suggestion.author,
+            imageUrl: bookData.imageUrl || null,
+            externalLink: bookData.externalLink || null
+          };
+        }
+        // Retorna a sugestão como está se não for um objeto de livro válido
+        return suggestion;
+      }));
+  
       return {
         role: message.role,
         message: mainMessage,
-        suggestions: suggestions,
-        canGenerateRecommendations: canGenerateRecommendations
+        suggestions: enrichedSuggestions,
+        canGenerateRecommendations: canGenerateRecommendations,
       };
-    });
-
-    return {messages: formattedMessages};
+    }));
+  
+    return { messages: formattedMessages };
   }
-
+  
+  
 }

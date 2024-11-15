@@ -79,50 +79,13 @@ export class OpenAiService {
 
   // Run assistant on the given thread
   async runAssistant(threadId: string): Promise<string> {
-    console.log('Running assistant for thread: ' + threadId);
+    
+    //console.log('Running assistant for thread: ' + threadId);
     const response = await this.openai.beta.threads.runs.create(threadId, {
       assistant_id: this.assistantId,
     });
-    console.log('Run response:', response);
+   // console.log('Run response:', response);
     return response.id;
-  }
-
-  async generateTitleForConversation(context: string): Promise<string> {
-
-    try {
-
-      const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
-        {
-          role: "system",
-          content: `Você é um assistente especializado em livros. Sua tarefa é gerar um título curto (máximo 4 palavras) para uma conversa com base nas respostas mais recentes do usuário, refletindo gênero, preferências ou características dos livros mencionados.
-        Seja direto e conciso. Exemplos de títulos:
-        - Para "Ficção Científica": "Livros de Ficção Científica"
-        - Para "Ficção Científica, 100 páginas": "Ficção Científica Curtos"
-        
-        Sempre preste atenção ao contexto da conversa para gerar o titulo, lembrando como os exemplos foram feitos.
-        Não inclua palavras como "Tema" ou aspas. Apenas forneça um título curto e claro.`
-        },
-        {
-          role: "user",
-          content: `Sugira um título curto e cativante para uma conversa sobre o tema: "${context}"`
-        }
-      ];
-  
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        messages: messages,
-        max_tokens: 10, // Reduzido para evitar respostas longas e garantir que o título seja curto
-        temperature: 0.3, // Baixa para mais previsibilidade
-        stop: ['\n']
-      });
-  
-      const generatedTitle = response.choices[0]?.message?.content?.trim() || 'Recomendação de livros';
-      return generatedTitle;
-  
-    } catch (error) {
-      console.error('Erro ao gerar título:', error);
-      return 'Recomendação de livros'; // Fallback em caso de erro
-    }
   }
 
   async getMessages(threadId: string): Promise<any> {
