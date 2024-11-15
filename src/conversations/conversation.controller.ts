@@ -28,8 +28,7 @@ export class ConversationController {
   
     const threadId = await this.openAiService.createThread();
   
-    const generatedTitle = await this.openAiService.generateTitleForConversation('Recomendação de Livros');
-    
+    const generatedTitle = "Nova conversa"
     const conversationRequest = await this.conversationService.createConversation(
       generatedTitle,
       user ?? null,
@@ -93,15 +92,6 @@ export class ConversationController {
       false
     );
   
-        // Recupera todas as mensagens da conversa para gerar o contexto completo
-    const contextMessages = await this.openAiService.getMessages(conversation.threadId);
-
-    // Usa o contexto completo para gerar um novo título
-    const newTitle = await this.openAiService.generateTitleForConversation(contextMessages);
-
-
-    await this.conversationService.updateConversationTitle(conversationId, newTitle);
-  
     const runId = await this.openAiService.runAssistant(conversation.threadId);
   
     const assistantMessages = await this.openAiService.checkingStatus(conversation.threadId, runId);
@@ -118,9 +108,7 @@ export class ConversationController {
       }
   
       if (contentJson.options) {
-        console.log('SOU UMA OPÇÃO DE RESPOSTA COM MENSAGEM');
-        console.log('contentJson.message', contentJson.message);
-        console.log('contentJson.options', contentJson.options);
+
         // Validar que message e suggestions existem
         if (!contentJson.message || !Array.isArray(contentJson.options)) {
           throw new Error('Estrutura inválida da mensagem do assistente');
@@ -144,7 +132,13 @@ export class ConversationController {
           suggestions,               // As sugestões extraídas
           canGenerateRecommendations  // Se pode gerar recomendações ou não
         );
-  
+      
+        const newTitle = contentJson.title || conversation.title;
+        
+        if (newTitle && newTitle !== conversation.title) {
+            await this.conversationService.updateConversationTitle(conversationId, newTitle);
+        }
+
         return {
           message: mainMessage,
           options: suggestions,
@@ -153,10 +147,7 @@ export class ConversationController {
         };
       
       } else if (contentJson.suggestions) {
-        console.log('SOU UMA RECOMENDAÇÃO DE LIVROS');
-        console.log('contentJson.message', contentJson.message);
-        console.log('contentJson.suggestions', contentJson.suggestions);
-  
+        
         const mainMessage = contentJson.message;
         const suggestions = contentJson.suggestions;
   
@@ -186,8 +177,7 @@ export class ConversationController {
         });
         
         recommendations = await Promise.all(promises);
-        console.log(recommendations);
-  
+
         await this.messageService.saveMessage(
           mainMessage,      // Conteúdo principal da mensagem do assistente
           Role.BOT,         // Identificar que é uma mensagem do assistente (BOT)
@@ -196,6 +186,12 @@ export class ConversationController {
           true              // Se pode gerar recomendações ou não
         );
   
+        const newTitle = contentJson.title || conversation.title;
+
+        if (newTitle && newTitle !== conversation.title) {
+            await this.conversationService.updateConversationTitle(conversationId, newTitle);
+        }
+      
         return {
           message: mainMessage,
           recommendations: recommendations,

@@ -88,48 +88,6 @@ export class OpenAiService {
     return response.id;
   }
 
-  async generateTitleForConversation(context: string): Promise<string> {
-    console.log("Context:", context);
-
-    try {
-        const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
-            {
-                role: "system",
-                content: `Você é um assistente especializado em criar títulos curtos e específicos (máximo 4 palavras) para conversas sobre livros.
-                - Extraia palavras-chave das mensagens, como "gênero" ou "autor".
-                - Não adicione aspas ao título e evite truncamentos.
-                - Exemplos: "Procurando por gênero", "Livros de Ficção Científica".`
-            },
-            {
-                role: "user",
-                content: `Me gere um título curto baseado nesses dados: "${context}"`
-            }
-        ];
-
-        const response = await this.openai.chat.completions.create({
-            model: 'gpt-3.5-turbo',
-            messages: messages,
-            max_tokens: 15, // Aumente para evitar truncamento
-            temperature: 0.2,
-            stop: ['\n']
-        });
-
-        let generatedTitle = response.choices[0]?.message?.content?.trim() || 'Recomendação de livros';
-
-        // Valida se o título está truncado ou contém palavras incompletas
-        if (generatedTitle.endsWith("de") || generatedTitle.endsWith("le")) {
-            generatedTitle = 'Sugestões de livros';
-        }
-
-        return generatedTitle;
-
-    } catch (error) {
-        console.error('Erro ao gerar título:', error);
-        return 'Recomendação de livros'; // Fallback em caso de erro
-    }
-  }
-
-
   async getMessages(threadId: string): Promise<any> {
     await new Promise(resolve => setTimeout(resolve, 1000));
     const messagesList = await this.openai.beta.threads.messages.list(threadId) as unknown as MessagesListResponse;
