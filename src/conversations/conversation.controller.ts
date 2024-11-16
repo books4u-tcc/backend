@@ -22,19 +22,19 @@ export class ConversationController {
 
   @UseGuards(OptionalJwtAuthGuard)
   @Post()
-  
+
   async createConversation(@Req() req: Request): Promise<any> {
     const user = req.user as Account | undefined;
-  
+
     const threadId = await this.openAiService.createThread();
-  
+
     const generatedTitle = "Nova conversa"
     const conversationRequest = await this.conversationService.createConversation(
       generatedTitle,
       user ?? null,
       threadId.id
     );
-  
+
     let conversation = [
       {
         id: conversationRequest.id,
@@ -42,7 +42,7 @@ export class ConversationController {
         threadId: conversationRequest.threadId,
       }
     ];
-  
+
     return { message: 'Conversation created successfully', conversation };
   }
 
@@ -79,10 +79,10 @@ export class ConversationController {
     @Body('message') message: string
   ): Promise<any> {
     const conversation = await this.conversationService.getConversationById(conversationId);
-  
+
     // Enviar mensagem do usuário para a thread da OpenAI
     const userMessage = await this.openAiService.addMessage(conversation.threadId, message);
-  
+
     // Salvar mensagem do usuário no banco de dados
     await this.messageService.saveMessage(
       message,
@@ -91,29 +91,29 @@ export class ConversationController {
       [],
       false
     );
-  
+
     const runId = await this.openAiService.runAssistant(conversation.threadId);
-  
+
     const assistantMessages = await this.openAiService.checkingStatus(conversation.threadId, runId);
-  
+
     if (assistantMessages.length > 0) {
       const assistantMessage = assistantMessages[0];
-  
+
       let contentJson;
-  
+
       try {
         contentJson = JSON.parse(assistantMessage.content);
       } catch (error) {
         throw new Error('Formato inválido da mensagem do assistente');
       }
-  
+
       if (contentJson.options) {
 
         // Validar que message e suggestions existem
         if (!contentJson.message || !Array.isArray(contentJson.options)) {
           throw new Error('Estrutura inválida da mensagem do assistente');
         }
-  
+
         const mainMessage = contentJson.message;
         const suggestions = contentJson.options;
         const canGenerateRecommendations = !!suggestions.some((suggestion: string) => suggestion.includes("Gerar recomendações"));
@@ -123,7 +123,7 @@ export class ConversationController {
             suggestions.splice(index, 1);
           }
         });
-  
+
         // Salvar a mensagem do assistente no banco de dados
         await this.messageService.saveMessage(
           mainMessage,               // Conteúdo principal da mensagem do assistente
@@ -132,9 +132,9 @@ export class ConversationController {
           suggestions,               // As sugestões extraídas
           canGenerateRecommendations  // Se pode gerar recomendações ou não
         );
-      
+
         const newTitle = contentJson.title || conversation.title;
-        
+
         if (newTitle && newTitle !== conversation.title) {
             await this.conversationService.updateConversationTitle(conversationId, newTitle);
         }
@@ -145,29 +145,29 @@ export class ConversationController {
           canGenerateRecommendations: canGenerateRecommendations,
           title: newTitle,
         };
-      
+
       } else if (contentJson.suggestions) {
-        
+
         const mainMessage = contentJson.message;
         const suggestions = contentJson.suggestions;
-  
+
         // Pegar o último item de suggestions para verificar se é uma string "Gerar Outra Recomendação"
         const canGenerateRecommendations = suggestions[suggestions.length - 1] === "Gerar Outra Recomendação" || "Gerar recomendações" || "Gerar outra recomendação" ? 1 : 0;
         // Retirar a opção de gerar recomendações do suggestions
         if (canGenerateRecommendations) {
           suggestions.pop();
         }
-  
+
         let recommendations: {
           name: string;
           author: string | null;
           imageUrl: string | null;
           externalLink: string | null;
         }[] = [];
-  
+
         const promises = suggestions.map(async (suggestion: any) => {
           const bookData = await this.bookService.getBookInfo(suggestion.title); // Chamada da API de livros
-          
+
           return {
             name: bookData.name || suggestion.title,
             author: bookData.author || suggestion.author,
@@ -175,7 +175,7 @@ export class ConversationController {
             externalLink: bookData.externalLink || null
           };
         });
-        
+
         recommendations = await Promise.all(promises);
 
         await this.messageService.saveMessage(
@@ -185,13 +185,13 @@ export class ConversationController {
           suggestions,      // As sugestões extraídas
           true              // Se pode gerar recomendações ou não
         );
-  
+
         const newTitle = contentJson.title || conversation.title;
 
         if (newTitle && newTitle !== conversation.title) {
             await this.conversationService.updateConversationTitle(conversationId, newTitle);
         }
-      
+
         return {
           message: mainMessage,
           recommendations: recommendations,
@@ -207,10 +207,10 @@ export class ConversationController {
   async getMessages(@Param('conversationId') conversationId: string): Promise<any> {
     const conversation = await this.conversationService.getConversationById(conversationId);
     const messages = await this.openAiService.getMessages(conversation.threadId);
-  
+
     const formattedMessages = await Promise.all(messages.map(async (message: any) => {
       let contentJson;
-  
+
       // Tenta parsear o conteúdo da mensagem como JSON
       try {
         contentJson = JSON.parse(message.content);
@@ -221,21 +221,32 @@ export class ConversationController {
           suggestions: []
         };
       }
-  
+
       const mainMessage = contentJson.message;
-      const suggestions = contentJson.suggestions || contentJson.options || [];
-  
-      // Verifica se uma das sugestões contém "Gerar recomendações"
-      const canGenerateRecommendations = suggestions.some((suggestion: any) => 
-        typeof suggestion === 'string' && suggestion.includes("Gerar recomendações")
+      let suggestions = contentJson.suggestions || contentJson.options || [];
+
+      // Verifica e remove as strings relacionadas a "Gerar Recomendação"
+      const canGenerateRecommendations = suggestions.some((suggestion: any) =>
+        typeof suggestion === 'string' &&
+        (suggestion.toLowerCase().includes("gerar recomendação") ||
+          suggestion.toLowerCase().includes("gerar outra recomendação") ||
+          suggestion.toLowerCase().includes("gerar recomendações"))
       ) ? 1 : 0;
-  
+
+      // Filtra as sugestões para remover as strings relacionadas
+      suggestions = suggestions.filter((suggestion: any) =>
+        !(typeof suggestion === 'string' &&
+          (suggestion.toLowerCase().includes("gerar recomendação") ||
+            suggestion.toLowerCase().includes("gerar outra recomendação") ||
+            suggestion.toLowerCase().includes("gerar recomendações")))
+      );
+
       // Processa sugestões com dados adicionais de livro, se disponíveis
       const enrichedSuggestions = await Promise.all(suggestions.map(async (suggestion: any) => {
         if (typeof suggestion === 'object' && suggestion.title) {
           // Obtém dados adicionais do livro usando o bookService
           const bookData = await this.bookService.getBookInfo(suggestion.title);
-          
+
           return {
             title: bookData.name || suggestion.title,
             author: bookData.author || suggestion.author,
@@ -246,7 +257,7 @@ export class ConversationController {
         // Retorna a sugestão como está se não for um objeto de livro válido
         return suggestion;
       }));
-  
+
       return {
         role: message.role,
         message: mainMessage,
@@ -254,9 +265,9 @@ export class ConversationController {
         canGenerateRecommendations: canGenerateRecommendations,
       };
     }));
-  
+
     return { messages: formattedMessages };
   }
-  
-  
+
+
 }
